@@ -1,4 +1,4 @@
-package com.example.minggu10.managers;
+[27/5 17.59] Juen: package com.example.minggu10.managers;
 
 import com.example.minggu10.data.Mahasiswa;
 import com.example.minggu10.managers.observers.MahasiswaObserver;
@@ -13,6 +13,7 @@ public class MahasiswaManager {
 
     Dao<Mahasiswa, String> mahasiswaRepository;
     private List<MahasiswaObserver> observers = new ArrayList<>();
+    private List<Mahasiswa> dataMahasiswa = new ArrayList<>();
 
 
     public MahasiswaManager() {
@@ -60,5 +61,297 @@ public class MahasiswaManager {
             notifyObservers( "mahasiswa gagal di hapus " + mahasiswa.getNama());
             return  false;
         }
+
+
     }
+}
+[27/5 17.59] Juen: package com.example.minggu10.view;
+
+import com.example.minggu10.HelloApplication;
+import com.example.minggu10.data.Mahasiswa;
+import com.example.minggu10.RegistrasiMahasiswa;
+import com.example.minggu10.managers.ConsoleLogger;
+import com.example.minggu10.managers.MahasiswaManager;
+import com.example.minggu10.util.SessionManager;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
+import javafx.event.ActionEvent;
+import javafx.fxml.FXML;
+import javafx.fxml.Initializable;
+import javafx.scene.control.*;
+import javafx.scene.control.cell.PropertyValueFactory;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.stage.FileChooser;
+
+import java.io.*;
+import java.net.URL;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ResourceBundle;
+import java.util.function.Predicate;
+
+public class MahasiswaViewController implements Initializable {
+    @FXML
+    public TextField txtNim;
+    @FXML
+    public TextField txtNama;
+    @FXML
+    public TextField txtNilai;
+    @FXML
+    public TableView<Mahasiswa> table;
+    @FXML
+    public TableColumn<Mahasiswa, String> nim;
+    @FXML
+    public TableColumn<Mahasiswa, String> nama;
+    @FXML
+    public TableColumn<Mahasiswa, Float> nilai;
+    @FXML
+    public TextField searchBox;
+    @FXML
+    public ImageView imageView;
+
+    private ObservableList<Mahasiswa> mahasiswaObservableList; //master data
+
+    private FilteredList<Mahasiswa> mahasiswaFilteredList;
+
+    @FXML
+    private MenuItem closeBtn;
+
+    @FXML
+    private MenuItem logOutButton;
+
+    MahasiswaManager mahasiswaManager;
+
+    private byte[] selectedMahasiswaFoto;
+
+    @Override
+    public void initialize(URL url, ResourceBundle resourceBundle) {
+        mahasiswaManager = new MahasiswaManager();
+        mahasiswaManager.addObserver(new ConsoleLogger());
+
+        mahasiswaObservableList = FXCollections.observableArrayList();
+        mahasiswaFilteredList = new FilteredList<>(FXCollections.observableList(mahasiswaObservableList));
+
+        table.getSelectionModel().selectedItemProperty().addListener(
+                new ChangeListener<Mahasiswa>() {
+                    @Override
+                    public void changed(ObservableValue<? extends Mahasiswa> observableValue, Mahasiswa mahasiswa, Mahasiswa t1) {
+                        if (observableValue.getValue() != null) {
+                            txtNim.setText(observableValue.getValue().getNim());
+                            txtNama.setText(observableValue.getValue().getNama());
+                            txtNilai.setText("" + observableValue.getValue().getNilai());
+                            selectedMahasiswaFoto = observableValue.getValue().getFoto();
+                            if (selectedMahasiswaFoto != null) {
+                                imageView.setImage(new Image(new ByteArrayInputStream(selectedMahasiswaFoto)));
+                            }else {
+                                imageView.setImage(null);
+                            }
+                        }
+                    }
+                });
+
+        searchBox.textProperty().addListener(new ChangeListener<String>() {
+            @Override
+            public void changed(ObservableValue<? extends String> observableValue, String oldValue, String newValue) {
+//                table.setItems(filterList(mahasiswaObservableList, newValue));
+                mahasiswaFilteredList.setPredicate(createPredicate(newValue));
+                table.setItems(mahasiswaFilteredList);
+            }
+        });
+
+        displayData();
+    }
+
+    private void displayData() {
+        mahasiswaObservableList.addAll(mahasiswaManager.getAllMahasiswa());
+        table.setItems(mahasiswaObservableList);
+        nim.setCellValueFactory(new PropertyValueFactory<>("Nim"));
+        nama.setCellValueFactory(new PropertyValueFactory<>("Nama"));
+        nilai.setCellValueFactory(new PropertyValueFactory<>("Nilai"));
+
+    }
+
+    private Predicate<? super Mahasiswa> createPredicate(String searchText) {
+        return new Predicate<Mahasiswa>() {
+            @Override
+            public boolean test(Mahasiswa mahasiswa) {
+                if (searchText == null || searchText.isEmpty()) return true;
+                return searchMahasiswa(mahasiswa, searchText);
+            }
+        };
+    }
+
+    private ObservableList<Mahasiswa> filterList(ObservableList<Mahasiswa> mahasiswaObservableList,
+                                                 String searchText) {
+        List<Mahasiswa> filteredList = new ArrayList<>();
+        for (Mahasiswa mahasiswa : mahasiswaObservableList) {
+            if (searchMahasiswa(mahasiswa, searchText)) filteredList.add(mahasiswa);
+        }
+        return FXCollections.observableList(filteredList);
+    }
+
+    private boolean searchMahasiswa(Mahasiswa mahasiswa, String searchText) {
+        return (mahasiswa.getNim().toLowerCase().contains(searchText.toLowerCase()) ||
+                mahasiswa.getNama().toLowerCase().contains(searchText.toLowerCase()));
+    }
+
+    public void onBtnAddClick(ActionEvent actionEvent) {
+        if (isMahasiswaChanged()) {
+            if (updateMahasiswa(table.getSelectionModel().getSelectedItem(),
+                    new Mahasiswa(
+                            txtNim.getText(),
+                            txtNama.getText(),
+                            Float.parseFloat(txtNilai.getText()),
+                            selectedMahasiswaFoto))) {
+                Alert alert = new Alert(Alert.AlertType.INFORMATION,
+                        "Data Updated");
+                alert.show();
+                imageView.setImage(null);
+            }
+        } else {
+            addMahasiswa(new Mahasiswa(
+                    txtNim.getText(),
+                    txtNama.getText(),
+                    Float.parseFloat(txtNilai.getText()),
+                    selectedMahasiswaFoto)
+            );
+            Alert alert = new Alert(Alert.AlertType.INFORMATION,
+                    "Data added");
+            alert.show();
+        }
+        bersihkan();
+    }
+
+    private boolean isMahasiswaChanged() {
+        Mahasiswa selectedMhs = table.getSelectionModel().getSelectedItem();
+        if (selectedMhs == null)
+            return false;
+        return !selectedMhs.getNim().equalsIgnoreCase(txtNim.getText()) ||
+                !selectedMhs.getNama().equalsIgnoreCase(txtNama.getText()) ||
+                selectedMhs.getNilai() != Float.parseFloat(txtNilai.getText()) ||
+                selectedMhs.getFoto() != selectedMahasiswaFoto;
+    }
+
+    private void bersihkan() {
+        txtNilai.clear();
+        txtNama.clear();
+        txtNim.clear();
+        table.getSelectionModel().select(null);
+        table.setItems(mahasiswaObservableList);
+        selectedMahasiswaFoto = null;
+    }
+
+    public void onBtnHapusClick(ActionEvent actionEvent) {
+        if (deleteMahasiswa(table.getSelectionModel().getSelectedItem())) {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION, "Data Mahasiswa dihapus");
+            alert.show();
+            bersihkan();
+        }
+    }
+
+    private void addMahasiswa(Mahasiswa mahasiswa) {
+        //validasi input!
+        if (mahasiswaManager.addMahasiswa(mahasiswa)) {
+            mahasiswaObservableList.add(mahasiswa);
+        }
+    }
+
+    private boolean updateMahasiswa(Mahasiswa oldMhs, Mahasiswa newMhs) {
+        int indexOldMhs = mahasiswaObservableList.indexOf(oldMhs);
+        mahasiswaObservableList.set(indexOldMhs, newMhs);
+        mahasiswaManager.updateMahasiswa(newMhs);
+        return true;
+    }
+
+    private boolean deleteMahasiswa(Mahasiswa selectedItem) {
+        if(mahasiswaManager.deleteMahasiswa(selectedItem)){
+            mahasiswaObservableList.remove(selectedItem);
+            return true;
+        }
+        return false;
+    }
+
+    public void onBtnSaveFileClick(ActionEvent actionEvent) {
+
+    }
+
+    public void onBtnCloseClick(ActionEvent actionEvent) {
+
+    }
+
+    public void onOpenBtnClick(ActionEvent actionEvent) {
+
+    }
+
+    public void onMenuAboutClicked(ActionEvent actionEvent) {
+        HelloApplication.openViewWithModal("hello-view", false);
+    }
+
+    public void onClickBersihkan(ActionEvent actionEvent) {
+
+    }
+
+    public void onBtnUbahFoto(ActionEvent actionEvent) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Pilih Foto");
+        File file = fileChooser.showOpenDialog(null);
+        if (file != null) {
+            try (FileInputStream fileInputStream = new FileInputStream(file)) {
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                byte[] buffer = new byte[1024];
+                int len;
+                while ((len = fileInputStream.read(buffer)) != -1) {
+                    bos.write(buffer, 0, len);
+                }
+                selectedMahasiswaFoto = bos.toByteArray();
+                imageView.setImage(new Image(new ByteArrayInputStream(selectedMahasiswaFoto)));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    @FXML
+    void onClickClose(ActionEvent event) {
+        // Create a new alert with type Confirmation
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Exit Confirmation");
+        alert.setHeaderText("Are you sure you want to exit?");
+        alert.setContentText("Press OK to exit the application.");
+        // Add Yes and No buttons to the alert
+        alert.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
+        // Show the alert and wait for user response
+        alert.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.YES) {
+                // User clicked Yes, exit the application
+                System.exit(0);
+            }
+        });
+    }
+
+    @FXML
+    void onActionLogout(ActionEvent event) {
+        // Create a new alert with type Confirmation
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Exit & Logout Confirmation");
+        alert.setHeaderText("Are you sure you want to exit?");
+        alert.setContentText("Press OK to exit the application.");
+
+        // Add Yes and No buttons to the alert
+        alert.getButtonTypes().setAll(ButtonType.YES, ButtonType.NO);
+        // Show the alert and wait for user response
+        alert.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.YES) {
+                // User clicked Yes, exit the application
+                SessionManager.getInstance().logout();
+                RegistrasiMahasiswa.setRoot("login-view", false);
+            }
+        });
+    }
+
 }
