@@ -1,1 +1,64 @@
+package com.example.minggu10.managers;
 
+import com.example.minggu10.data.Mahasiswa;
+import com.example.minggu10.managers.observers.MahasiswaObserver;
+import com.example.minggu10.repository.Dao;
+import com.example.minggu10.repository.MahasiswaRepository;
+import com.example.minggu10.util.DBManager;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class MahasiswaManager {
+
+    Dao<Mahasiswa, String> mahasiswaRepository;
+    private List<MahasiswaObserver> observers = new ArrayList<>();
+
+
+    public MahasiswaManager() {
+        mahasiswaRepository = new MahasiswaRepository(DBManager.getConnection());
+
+    }
+    public void addObserver(MahasiswaObserver observer) {
+        observers.add(observer);
+    }
+    private void notifyObservers(String message) {
+        for (MahasiswaObserver observer : observers) {
+            observer.onMahasiswaChanged(message);
+        }
+    }
+
+    public ArrayList<Mahasiswa> getAllMahasiswa() {
+        return (ArrayList<Mahasiswa>) mahasiswaRepository.findAll();
+    }
+
+    public boolean addMahasiswa(Mahasiswa mahasiswa) {
+        if(mahasiswaRepository.save(mahasiswa)){
+            notifyObservers( ("mahasiswa berhasil di tambahkan" + mahasiswa.getNama()));
+            return true;
+        } else {
+            notifyObservers( "mahasiswa gagal di tambahkan " + mahasiswa.getNama());
+            return  false;
+        }
+    }
+
+    public boolean updateMahasiswa(Mahasiswa mahasiswa) {
+        if (mahasiswaRepository.update(mahasiswa)){
+            notifyObservers( ("mahasiswa diubah" + mahasiswa.getNama()));
+            return true;
+        } else {
+            notifyObservers( "mahasiswa gagal di ubah " + mahasiswa.getNama());
+            return  false;
+        }
+    }
+
+    public boolean deleteMahasiswa(Mahasiswa mahasiswa) {
+        if (mahasiswaRepository.delete(mahasiswa)){
+            notifyObservers( ("mahasiswa berhasil di hapus" + mahasiswa.getNama()));
+            return true;
+        } else {
+            notifyObservers( "mahasiswa gagal di hapus " + mahasiswa.getNama());
+            return  false;
+        }
+    }
+}
